@@ -12,11 +12,86 @@
 namespace IMAC
 {
 	// ==================================================== EX 1
-    __global__
-    void maxReduce_ex1(const uint *const dev_array, const uint size, uint *const dev_partialMax)
+    __global__ void maxReduce_ex1(const uint *const dev_array, const uint size, uint *const dev_partialMax)
 	{
-		/// TODO
+
+    extern __shared__ uint sharedMemory[];
+
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int idThread = threadIdx.x;
+
+    if(index >= size)
+      sharedMemory[idThread] = 0;
+    else
+      sharedMemory[idThread] = dev_array[index];
+
+    __syncthreads();
+    for(int i = 1; i < blockDim.x; i *= 2) {
+      if(idThread % (2*i) == 0)
+        sharedMemory[idThread] = umax(sharedMemory[idThread], sharedMemory[idThread + i]);
+
+      __syncthreads();
+    }
+
+    if(idThread == 0)
+       dev_partialMax[blockIdx.x] = sharedMemory[idThread];
 	}
+
+	// ==================================================== EX 2
+  __global__ void maxReduce_ex2(const uint *const dev_array, const uint size, uint *const dev_partialMax)
+{
+
+  extern __shared__ uint sharedMemory[];
+
+  int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+  int idThread = threadIdx.x;
+
+  if(index >= size)
+    sharedMemory[idThread] = 0;
+  else
+    sharedMemory[idThread] = dev_array[index];
+
+  __syncthreads();
+  for(int i = (blockDim.x / 2); i > 0; i /= 2) {
+    if(idThread < i)
+      sharedMemory[idThread] = umax(sharedMemory[idThread], sharedMemory[idThread + i]);
+
+    __syncthreads();
+  }
+
+  if(idThread == 0)
+     dev_partialMax[blockIdx.x] = sharedMemory[idThread];
+}
+
+// ==================================================== EX 3
+__global__ void maxReduce_ex3(const uint *const dev_array, const uint size, uint *const dev_partialMax)
+{
+
+extern __shared__ uint sharedMemory[];
+
+int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+int idThread = threadIdx.x;
+
+if(index >= size)
+  sharedMemory[idThread] = 0;
+else {
+  if(index + (blockDim.x * blockDim.x / 2) >= size)
+    sharedMemory[idThread] = umax(dev_array[index], dev_array[index + (blockDim.x * blockIdx.x / 2)]);
+  else
+    sharedMemory[idThread] = dev_array[index];
+}
+
+__syncthreads();
+for(int i = (blockDim.x / 2); i > 0; i /= 2) {
+  if(idThread < i)
+    sharedMemory[idThread] = umax(sharedMemory[idThread], sharedMemory[idThread + i]);
+
+  __syncthreads();
+}
+
+if(idThread == 0)
+   dev_partialMax[blockIdx.x] = sharedMemory[idThread];
+}
 
 	void studentJob(const std::vector<uint> &array, const uint resCPU /* Just for comparison */, const uint nbIterations)
     {
@@ -34,7 +109,7 @@ namespace IMAC
 		uint res1 = 0; // result
 		// Launch reduction and get timing
 		float2 timing1 = reduce<KERNEL_EX1>(nbIterations, dev_array, array.size(), res1);
-		
+
         std::cout << " -> Done: ";
         printTiming(timing1);
 		compare(res1, resCPU); // Compare results
@@ -43,7 +118,7 @@ namespace IMAC
 		uint res2 = 0; // result
 		// Launch reduction and get timing
 		float2 timing2 = reduce<KERNEL_EX2>(nbIterations, dev_array, array.size(), res2);
-		
+
         std::cout << " -> Done: ";
         printTiming(timing2);
 		compare(res2, resCPU);
@@ -52,7 +127,7 @@ namespace IMAC
 		uint res3 = 0; // result
 		// Launch reduction and get timing
 		float2 timing3 = reduce<KERNEL_EX3>(nbIterations, dev_array, array.size(), res3);
-		
+
         std::cout << " -> Done: ";
         printTiming(timing3);
 		compare(res3, resCPU);
@@ -61,7 +136,7 @@ namespace IMAC
 		uint res4 = 0; // result
 		// Launch reduction and get timing
 		float2 timing4 = reduce<KERNEL_EX4>(nbIterations, dev_array, array.size(), res4);
-		
+
         std::cout << " -> Done: ";
         printTiming(timing4);
 		compare(res4, resCPU);
@@ -70,7 +145,7 @@ namespace IMAC
 		uint res5 = 0; // result
 		// Launch reduction and get timing
 		float2 timing5 = reduce<KERNEL_EX5>(nbIterations, dev_array, array.size(), res5);
-		
+
         std::cout << " -> Done: ";
         printTiming(timing5);
 		compare(res5, resCPU);

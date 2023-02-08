@@ -29,11 +29,14 @@ namespace IMAC
         KERNEL_EX4,
         KERNEL_EX5
     };
-	
+
 	// ==================================================== EX 1
-	__global__
-    void maxReduce_ex1(const uint *const dev_array, const uint size, uint *const dev_partialMax);
-    
+	__global__ void maxReduce_ex1(const uint *const dev_array, const uint size, uint *const dev_partialMax);
+	// ==================================================== EX 2
+	__global__ void maxReduce_ex2(const uint *const dev_array, const uint size, uint *const dev_partialMax);
+	// ==================================================== EX 3
+	__global__ void maxReduce_ex3(const uint *const dev_array, const uint size, uint *const dev_partialMax);
+
 	// return a uint2 with x: dimBlock / y: dimGrid
     template<uint kernelType>
     uint2 configureKernel(const uint sizeArray)
@@ -44,14 +47,16 @@ namespace IMAC
 		switch(kernelType)
 		{
 			case KERNEL_EX1:
-				dimBlockGrid.x = MAX_NB_THREADS; 
-				dimBlockGrid.y = DEFAULT_NB_BLOCKS;
+				dimBlockGrid.x = (sizeArray < MAX_NB_THREADS) ? nextPow2(sizeArray) : MAX_NB_THREADS;
+				dimBlockGrid.y = (sizeArray + MAX_NB_THREADS - 1) / MAX_NB_THREADS;
 			break;
 			case KERNEL_EX2:
-				/// TODO EX 2
+				dimBlockGrid.x = (sizeArray < MAX_NB_THREADS) ? nextPow2(sizeArray) : MAX_NB_THREADS;
+				dimBlockGrid.y = (sizeArray + MAX_NB_THREADS - 1) / MAX_NB_THREADS;
 			break;
 			case KERNEL_EX3:
-				/// TODO EX 3
+				dimBlockGrid.x = (sizeArray < MAX_NB_THREADS) ? nextPow2(sizeArray) : MAX_NB_THREADS;
+				dimBlockGrid.y = ((sizeArray + MAX_NB_THREADS - 1) / MAX_NB_THREADS);
 			break;
 			case KERNEL_EX4:
 				/// TODO EX 4
@@ -63,11 +68,11 @@ namespace IMAC
                 throw std::runtime_error("Error configureKernel: unknown kernel type");
 		}
 		verifyDimGridBlock( dimBlockGrid.y, dimBlockGrid.x, sizeArray ); // Are you reasonable ?
-        
+
         return dimBlockGrid;
     }
 
-    // Launch kernel number 'kernelType' and return float2 for timing (x:device,y:host)    
+    // Launch kernel number 'kernelType' and return float2 for timing (x:device,y:host)
     template<uint kernelType>
     float2 reduce(const uint nbIterations, const uint *const dev_array, const uint size, uint &result)
 	{
@@ -75,14 +80,14 @@ namespace IMAC
 
 		// Allocate arrays (host and device) for partial result
 		/// TODO
-		std::vector<uint> host_partialMax(0); // REPLACE SIZE !
-		const size_t bytesPartialMax = 0; // REPLACE BYTES !
-		const size_t bytesSharedMem = 0; // REPLACE BYTES !
-		
+		std::vector<uint> host_partialMax(size); // REPLACE SIZE !
+		const size_t bytesPartialMax = dimBlockGrid.y * sizeof(uint); // REPLACE BYTES !
+		const size_t bytesSharedMem = dimBlockGrid.x * sizeof(uint); // REPLACE BYTES !
+
 		uint *dev_partialMax;
 		HANDLE_ERROR(cudaMalloc((void**) &dev_partialMax, bytesPartialMax ) );
 
-		std::cout 	<< "Computing on " << dimBlockGrid.y << " block(s) and " 
+		std::cout 	<< "Computing on " << dimBlockGrid.y << " block(s) and "
 					<< dimBlockGrid.x << " thread(s) "
 					<<"- shared mem size = " << bytesSharedMem << std::endl;
 
@@ -95,12 +100,10 @@ namespace IMAC
 			switch(kernelType) // Evaluated at compilation time
 			{
 				case KERNEL_EX1:
-					/// TODO EX 2
-					/// maxReduce_ex1<<<>>>();
-					std::cout << "Not implemented !" << std::endl;
+					maxReduce_ex1<<<dimBlockGrid.y, dimBlockGrid.x, bytesSharedMem>>>(dev_array, size, dev_partialMax);
 				break;
 				case KERNEL_EX2:
-					/// TODO EX 2
+					maxReduce_ex2<<<dimBlockGrid.y, dimBlockGrid.x, bytesSharedMem>>>(dev_array, size, dev_partialMax);
 					std::cout << "Not implemented !" << std::endl;
 				break;
 				case KERNEL_EX3:
@@ -136,7 +139,7 @@ namespace IMAC
 		{
 			throw std::runtime_error(cudaGetErrorString(err));
 		}
-		
+
 		ChronoCPU chrCPU;
 		chrCPU.start();
 
@@ -145,14 +148,14 @@ namespace IMAC
 		{
 			result = std::max<uint>(result, host_partialMax[i]);
 		}
-		
+
 		chrCPU.stop();
 
 		timing.y = chrCPU.elapsedTime(); // Stores time for host
-		
+
         return timing;
-	}  
-    
+	}
+
     void studentJob(const std::vector<uint> &array, const uint resCPU /* Just for comparison */, const uint nbIterations);
 
     void printTiming(const float2 timing);
