@@ -60,138 +60,53 @@ namespace IMAC
 __global__ void conv2D_CUDA(const uint imgWidth, const uint imgHeight, const uint matSize, uchar4* const dev_output)
 {
 
-		int idX = ((blockIdx.x * blockDim.x) + threadIdx.x);
-		int idY = ((blockIdx.y * blockDim.y) + threadIdx.y);
-
-		if(idX >= imgWidth || idY >= imgHeight)
+	for(int idY = blockIdx.y * blockDim.y + threadIdx.y; idY < imgHeight; idY += gridDim.y * blockDim.y)
+	{
+		for(int idX = blockIdx.x * blockDim.x + threadIdx.x; idX < imgWidth; idX += gridDim.x * blockDim.x)
 		{
-			return;
-		}
 
-		float3 sum = make_float3(0.f,0.f,0.f);
-		int id = idY * imgWidth + idX;
-		int i, j, x, y;
-		uint idMat;
-		uchar4 pixel;
+			float3 sum = make_float3(0.f,0.f,0.f);
+			int id = idY * imgWidth + idX;
+			int i, j, x, y;
+			uint idMat;
+			uchar4 pixel;
 
-		// Apply convolution
-		for (j = 0; j < matSize; ++j )
-		{
-			for (i = 0; i < matSize; ++i )
+			// Apply convolution
+			for (j = 0; j < matSize; ++j )
 			{
-				x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
-				y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
+				for (i = 0; i < matSize; ++i )
+				{
+					x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
+					y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
 
-				idMat		= j * matSize + i;
-				//idImage	= y * imgWidth + x;
+					idMat		= j * matSize + i;
+					//idImage	= y * imgWidth + x;
 
-				pixel = tex2D(dev_img_2D, x, y);
-				sum.x += (float) pixel.x * dev_matConv[idMat];
-				sum.y += (float) pixel.y * dev_matConv[idMat];
-				sum.z += (float) pixel.z * dev_matConv[idMat];
+					pixel = tex2D(dev_img_2D, x, y);
+					sum.x += (float) pixel.x * dev_matConv[idMat];
+					sum.y += (float) pixel.y * dev_matConv[idMat];
+					sum.z += (float) pixel.z * dev_matConv[idMat];
+				}
 			}
-		}
 
-		dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
-		dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
-		dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
-		dev_output[id].w = 255;
+			dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
+			dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
+			dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
+			dev_output[id].w = 255;
+
+		}
+	}
+
 }
 
 
 __global__ void conv1D_CUDA(const uint imgWidth, const uint imgHeight, const uint matSize, uchar4* const dev_output)
 {
-		int idX = ((blockIdx.x * blockDim.x) + threadIdx.x);
-		int idY = ((blockIdx.y * blockDim.y) + threadIdx.y);
 
-		if(idX >= imgWidth || idY >= imgHeight)
+	for(int idY = blockIdx.y * blockDim.y + threadIdx.y; idY < imgHeight; idY += gridDim.y * blockDim.y)
+	{
+		for(int idX = blockIdx.x * blockDim.x + threadIdx.x; idX < imgWidth; idX += gridDim.x * blockDim.x)
 		{
-			return;
-		}
-
-		float3 sum = make_float3(0.f,0.f,0.f);
-		int id = idY * imgWidth + idX;
-		int i, j, x, y;
-		uint idMat, idImage;
-		uchar4 pixel;
-
-		// Apply convolution
-		for (j = 0; j < matSize; ++j )
-		{
-			for (i = 0; i < matSize; ++i )
-			{
-				x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
-				y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
-
-				idMat		= j * matSize + i;
-				idImage	= y * imgWidth + x;
-
-				pixel = tex1Dfetch(dev_img_1D, idImage);
-				sum.x += (float) pixel.x * dev_matConv[idMat];
-				sum.y += (float) pixel.y * dev_matConv[idMat];
-				sum.z += (float) pixel.z * dev_matConv[idMat];
-			}
-		}
-
-		dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
-		dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
-		dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
-		dev_output[id].w = 255;
-}
-
-__global__ void convConstCUDA(	const uchar4* const dev_inputImg, const uint imgWidth, const uint imgHeight,
-													      const uint matSize,
-																uchar4* const dev_output)
-{
-		int idX = ((blockIdx.x * blockDim.x) + threadIdx.x);
-		int idY = ((blockIdx.y * blockDim.y) + threadIdx.y);
-
-		if(idX >= imgWidth || idY >= imgHeight)
-		{
-			return;
-		}
-
-		float3 sum = make_float3(0.f,0.f,0.f);
-		int id = idY * imgWidth + idX;
-		int i, j, x, y;
-		uint idMat, idImage;
-		uchar4 pixel;
-
-		// Apply convolution
-		for (j = 0; j < matSize; ++j )
-		{
-			for (i = 0; i < matSize; ++i )
-			{
-				x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
-				y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
-
-				idMat		= j * matSize + i;
-				idImage	= y * imgWidth + x;
-
-				pixel = dev_inputImg[idImage];
-				sum.x += (float) pixel.x * dev_matConv[idMat];
-				sum.y += (float) pixel.y * dev_matConv[idMat];
-				sum.z += (float) pixel.z * dev_matConv[idMat];
-			}
-		}
-
-		dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
-		dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
-		dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
-		dev_output[id].w = 255;
-}
-
-	__global__ void convCUDA(	const uchar4* const dev_inputImg, const uint imgWidth, const uint imgHeight,
-														const float* const dev_matConv,  const uint matSize,
-														uchar4* const dev_output)
-{
-			int idX = ((blockIdx.x * blockDim.x) + threadIdx.x);
-			int idY = ((blockIdx.y * blockDim.y) + threadIdx.y);
-
-			if(idX >= imgWidth || idY >= imgHeight)
-			{
-				return;
-			}
 
 			float3 sum = make_float3(0.f,0.f,0.f);
 			int id = idY * imgWidth + idX;
@@ -199,6 +114,94 @@ __global__ void convConstCUDA(	const uchar4* const dev_inputImg, const uint imgW
 			uint idMat, idImage;
 			uchar4 pixel;
 
+			// Apply convolution
+			for (j = 0; j < matSize; ++j )
+			{
+				for (i = 0; i < matSize; ++i )
+				{
+					x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
+					y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
+
+					idMat		= j * matSize + i;
+					idImage	= y * imgWidth + x;
+
+					pixel = tex1Dfetch(dev_img_1D, idImage);
+					sum.x += (float) pixel.x * dev_matConv[idMat];
+					sum.y += (float) pixel.y * dev_matConv[idMat];
+					sum.z += (float) pixel.z * dev_matConv[idMat];
+				}
+			}
+
+			dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
+			dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
+			dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
+			dev_output[id].w = 255;
+
+		}
+	}
+
+}
+
+__global__ void convConstCUDA(	const uchar4* const dev_inputImg, const uint imgWidth, const uint imgHeight,
+													      const uint matSize,
+																uchar4* const dev_output)
+{
+
+	for(int idY = blockIdx.y * blockDim.y + threadIdx.y; idY < imgHeight; idY += gridDim.y * blockDim.y)
+	{
+		for(int idX = blockIdx.x * blockDim.x + threadIdx.x; idX < imgWidth; idX += gridDim.x * blockDim.x)
+		{
+
+			float3 sum = make_float3(0.f,0.f,0.f);
+			int id = idY * imgWidth + idX;
+			int i, j, x, y;
+			uint idMat, idImage;
+			uchar4 pixel;
+
+			// Apply convolution
+			for (j = 0; j < matSize; ++j )
+			{
+				for (i = 0; i < matSize; ++i )
+				{
+					x = min(imgWidth  - 1,  max(0, (idX + i - (int) matSize / 2)  ));
+					y = min(imgHeight - 1,  max(0, (idY + j - (int) matSize / 2)  ));
+
+					idMat		= j * matSize + i;
+					idImage	= y * imgWidth + x;
+
+					pixel = dev_inputImg[idImage];
+					sum.x += (float) pixel.x * dev_matConv[idMat];
+					sum.y += (float) pixel.y * dev_matConv[idMat];
+					sum.z += (float) pixel.z * dev_matConv[idMat];
+				}
+			}
+
+			dev_output[id].x = (uchar)min(255.f,  max(0.f, sum.x)  );
+			dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
+			dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
+			dev_output[id].w = 255;
+
+		}
+	}
+
+}
+
+	__global__ void convCUDA(	const uchar4* const dev_inputImg, const uint imgWidth, const uint imgHeight,
+														const float* const dev_matConv,  const uint matSize,
+														uchar4* const dev_output)
+{
+
+
+	for(int idY = blockIdx.y * blockDim.y + threadIdx.y; idY < imgHeight; idY += gridDim.y * blockDim.y)
+	{
+		for(int idX = blockIdx.x * blockDim.x + threadIdx.x; idX < imgWidth; idX += gridDim.x * blockDim.x)
+		{
+
+			float3 sum = make_float3(0.f,0.f,0.f);
+			int id = (idY * imgWidth) + idX;
+			int i, j, x, y;
+			uint idMat, idImage;
+			uchar4 pixel;
 
 			// Apply convolution
 			for (j = 0; j < matSize; ++j )
@@ -222,7 +225,9 @@ __global__ void convConstCUDA(	const uchar4* const dev_inputImg, const uint imgW
 			dev_output[id].y = (uchar)min(255.f,  max(0.f, sum.y)  );
 			dev_output[id].z = (uchar)min(255.f,  max(0.f, sum.z)  );
 			dev_output[id].w = 255;
+		}
 	}
+}
 
   void studentJob(const std::vector<uchar4> &inputImg, // Input image
 					const uint imgWidth, const uint imgHeight, // Image size
@@ -234,102 +239,194 @@ __global__ void convConstCUDA(	const uchar4* const dev_inputImg, const uint imgW
 	{
 		ChronoGPU chrGPU;
 
+		// 2 basic arrays for GPU
 		uchar4 *dev_inputImg = NULL;
 		uchar4 *dev_output   = NULL;
 
+		//
 		const size_t imgBytes = imgWidth * imgHeight * sizeof(uchar4);
 		const size_t matBytes = matSize  * matSize   * sizeof(uint);
-		const int thread_size = 32;
-		dim3 nb_block = dim3((imgWidth / thread_size) + 1, (imgHeight / thread_size) + 1,1);
-		dim3 nb_thread = dim3(thread_size, thread_size, 1);
 
-		////////////////////////////////    Exo 1   ////////////////////////////////////////
+		// Configure kernel
+		const dim3 nb_threads = dim3(32, 32, 1); // 1024
+		const dim3 nb_blocks = dim3((imgWidth + nb_threads.x - 1) / nb_threads.x, (imgHeight + nb_threads.y - 1) / nb_threads.y, 1);
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////    Exo 1   /////////////////////////////////////////////////////////
 		/*
+		// 1 array of matrix for GPU
 		float  *dev_matConv	 = NULL;
 
+		// Allocate arrays on device (input, ouput and matrix)
+		std::cout 	<< "Allocating input and ouput (2 arrays): "  << ( ( 2 * imgBytes ) >> 20 ) << " MB on Device" << std::endl
+		          << "Allocating convolution matrix (1 array): "  << ( ( 2 * matBytes ) >> 20 ) << " MB on Device" << std::endl;
 		chrGPU.start();
-		cudaMalloc((void **) &dev_inputImg, imgBytes);
-		cudaMalloc((void **) &dev_matConv,  matBytes);
-		cudaMalloc((void **) &dev_output,   imgBytes);
+		HANDLE_ERROR( cudaMalloc((void **) &dev_inputImg, imgBytes) );
+		HANDLE_ERROR( cudaMalloc((void **) &dev_matConv,  matBytes) );
+		HANDLE_ERROR( cudaMalloc((void **) &dev_output,   imgBytes) );
 		chrGPU.stop();
 		std::cout << "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
 		// Copy data from host to device (input arrays)
-		cudaMemcpy(dev_inputImg, &inputImg[0], imgBytes, cudaMemcpyHostToDevice);
-		cudaMemcpy(dev_matConv,  &matConv[0],  matBytes, cudaMemcpyHostToDevice);
+		std::cout << "Copy input from host to device" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(dev_inputImg, inputImg.data(), imgBytes, cudaMemcpyHostToDevice) );
+		HANDLE_ERROR( cudaMemcpy(dev_matConv,  matConv.data(),  matBytes, cudaMemcpyHostToDevice) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
 		// Launch kernel
-		convCUDA<<<nb_block, nb_thread>>>(dev_inputImg, imgWidth, imgHeight, dev_matConv, matSize, dev_output);
+		std::cout << "Convolution filter on GPU (" 	<< nb_blocks.x << "x" << nb_blocks.y << " blocks - " << nb_threads.x << "x" << nb_threads.y << " threads)" << std::endl;
+		chrGPU.start();
+		convCUDA<<<nb_blocks, nb_threads>>>(dev_inputImg, imgWidth, imgHeight, dev_matConv, matSize, dev_output);
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
 		// Copy data from device to host (output array)
-		cudaMemcpy(&output[0], dev_output, imgBytes, cudaMemcpyDeviceToHost);
+		std::cout << "Copy output from device to host" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(output.data(), dev_output, imgBytes, cudaMemcpyDeviceToHost) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
 		// Free arrays on device
 		cudaFree(dev_matConv);
 		*/
-		////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-		////////////////////////////////    Exo 2   /////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////    Exo 2   /////////////////////////////////////////////////////////
 		/*
+		// Allocate arrays on device (input, ouput and matrix)
+		std::cout 	<< "Allocating input and ouput (2 arrays): "  << ( ( 2 * imgBytes ) >> 20 ) << " MB on Device" << std::endl;
 		chrGPU.start();
-		cudaMalloc((void **) &dev_inputImg, imgBytes);
-		cudaMalloc((void **) &dev_output,   imgBytes);
-		chrGPU.stop();
-		std::cout << "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
-		// Copy data from host to device (input arrays)
-		cudaMemcpy(dev_inputImg, &inputImg[0], imgBytes, cudaMemcpyHostToDevice);
-		cudaMemcpyToSymbol(dev_matConv, &matConv[0], matBytes, 0, cudaMemcpyHostToDevice);
-		// Launch kernel
-		convConstCUDA<<<nb_block, nb_thread>>>(dev_inputImg, imgWidth, imgHeight, matSize, dev_output);
-		// Copy data from device to host (output array)
-		cudaMemcpy(&output[0], dev_output, imgBytes, cudaMemcpyDeviceToHost);
-		*/
-		////////////////////////////////////////////////////////////////////////////////////
-
-
-		////////////////////////////////    Exo 3   /////////////////////////////////////////
-		/*
-		chrGPU.start();
-		cudaMalloc((void **) &dev_inputImg, imgBytes);
-		cudaMalloc((void **) &dev_output,   imgBytes);
+		HANDLE_ERROR( cudaMalloc((void **) &dev_inputImg, imgBytes) );
+		HANDLE_ERROR( cudaMalloc((void **) &dev_output,   imgBytes) );
 		chrGPU.stop();
 		std::cout << "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
 		// Copy data from host to device (input arrays)
-		cudaMemcpy(dev_inputImg, &inputImg[0], imgBytes, cudaMemcpyHostToDevice);
-		cudaMemcpyToSymbol(dev_matConv, &matConv[0], matBytes, 0, cudaMemcpyHostToDevice);
-
-		cudaBindTexture( 0, dev_img_1D, dev_inputImg, imgBytes);
+		std::cout << "Copy input from host to device" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(dev_inputImg, inputImg.data(), imgBytes, cudaMemcpyHostToDevice) );
+		HANDLE_ERROR( cudaMemcpyToSymbol(dev_matConv, matConv.data(), matBytes, 0, cudaMemcpyHostToDevice) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
 		// Launch kernel
-		conv1D_CUDA<<<nb_block, nb_thread>>>(imgWidth, imgHeight, matSize, dev_output);
-		// Copy data from device to host (output array)
-		cudaMemcpy(&output[0], dev_output, imgBytes, cudaMemcpyDeviceToHost);
-		*/
-		////////////////////////////////////////////////////////////////////////////////////
+		std::cout << "Convolution filter with const on GPU (" 	<< nb_blocks.x << "x" << nb_blocks.y << " blocks - " << nb_threads.x << "x" << nb_threads.y << " threads)" << std::endl;
+		chrGPU.start();
+		convConstCUDA<<<nb_blocks, nb_threads>>>(dev_inputImg, imgWidth, imgHeight, matSize, dev_output);
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
-		////////////////////////////////    Exo 4   /////////////////////////////////////////
+		// Copy data from device to host (output array)
+		std::cout << "Copy output from device to host" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(output.data(), dev_output, imgBytes, cudaMemcpyDeviceToHost) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+		*/
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////    Exo 3   /////////////////////////////////////////////////////////
+		/*
+		// Allocate arrays on device (input, ouput and matrix)
+		std::cout 	<< "Allocating input and ouput (2 arrays): "  << ( ( 2 * imgBytes ) >> 20 ) << " MB on Device" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMalloc((void **) &dev_inputImg, imgBytes) );
+		HANDLE_ERROR( cudaMalloc((void **) &dev_output,   imgBytes) );
+		chrGPU.stop();
+		std::cout << "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
+		// Copy data from host to device (input arrays)
+		std::cout << "Copy input from host to device" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(dev_inputImg, inputImg.data(), imgBytes, cudaMemcpyHostToDevice) );
+		HANDLE_ERROR( cudaMemcpyToSymbol(dev_matConv, matConv.data(), matBytes, 0, cudaMemcpyHostToDevice) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
+		// Bind texture 1D
+		std::cout << "Binding 1D Texture" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaBindTexture( 0, dev_img_1D, dev_inputImg, imgBytes) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
+		// Launch kernel
+		std::cout << "Convolution filter with 1D texture on GPU (" 	<< nb_blocks.x << "x" << nb_blocks.y << " blocks - " << nb_threads.x << "x" << nb_threads.y << " threads)" << std::endl;
+		chrGPU.start();
+		conv1D_CUDA<<<nb_blocks, nb_threads>>>(imgWidth, imgHeight, matSize, dev_output);
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
+		// Copy data from device to host (output array)
+		std::cout << "Copy output from device to host" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(output.data(), dev_output, imgBytes, cudaMemcpyDeviceToHost) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+		*/
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////    Exo 4   /////////////////////////////////////////////////////////
+
 		size_t pitch;
 		const size_t widthBytes = imgWidth * sizeof(uchar4);
 
+		// Allocate arrays on device (input, ouput and matrix)
+		std::cout 	<< "Allocating input and ouput (2 arrays): "  << ( ( 2 * imgBytes ) >> 20 ) << " MB on Device" << std::endl;
 		chrGPU.start();
-		cudaMallocPitch( &dev_inputImg, &pitch, widthBytes, imgHeight);
-		cudaMalloc((void **) &dev_output, imgBytes);
+		HANDLE_ERROR( cudaMallocPitch( &dev_inputImg, &pitch, widthBytes, imgHeight) );
+		HANDLE_ERROR( cudaMalloc((void **) &dev_output,   imgBytes) );
 		chrGPU.stop();
 		std::cout << "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
 		// Copy data from host to device (input arrays)
-		cudaMemcpy2D(dev_inputImg, pitch, &inputImg[0], widthBytes, widthBytes, imgHeight, cudaMemcpyHostToDevice);
-		cudaMemcpyToSymbol(dev_matConv, &matConv[0], matBytes, 0, cudaMemcpyHostToDevice);
+		std::cout << "Copy input from host to device" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy2D(dev_inputImg, pitch, inputImg.data(), widthBytes, widthBytes, imgHeight, cudaMemcpyHostToDevice) );
+		HANDLE_ERROR( cudaMemcpyToSymbol(dev_matConv, matConv.data(), matBytes, 0, cudaMemcpyHostToDevice) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
-		cudaBindTexture2D(NULL, dev_img_2D, dev_inputImg, imgHeight, imgWidth,  pitch);
+		// Bind texture 2D
+		std::cout << "Binding 2D Texture" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaBindTexture2D(NULL, dev_img_2D, dev_inputImg, imgHeight, imgWidth,  pitch) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
 
 		// Launch kernel
-		conv2D_CUDA<<<nb_block, nb_thread>>>(imgWidth, imgHeight, matSize, dev_output);
+		std::cout << "Convolution filter with 2D texture on GPU (" 	<< nb_blocks.x << "x" << nb_blocks.y << " blocks - " << nb_threads.x << "x" << nb_threads.y << " threads)" << std::endl;
+		chrGPU.start();
+		conv2D_CUDA<<<nb_blocks, nb_threads>>>(imgWidth, imgHeight, matSize, dev_output);
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+
 		// Copy data from device to host (output array)
-		cudaMemcpy(&output[0], dev_output, imgBytes, cudaMemcpyDeviceToHost);
-		////////////////////////////////////////////////////////////////////////////////////
+		std::cout << "Copy output from device to host" << std::endl;
+		chrGPU.start();
+		HANDLE_ERROR( cudaMemcpy(output.data(), dev_output, imgBytes, cudaMemcpyDeviceToHost) );
+		chrGPU.stop();
+		std::cout 	<< "-> Done : " << chrGPU.elapsedTime() << " ms" << std::endl << std::endl;
+		
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
+		std::cout << "Comparison of final results" << std::endl;
 		compareImages(resultCPU, output);
+
 		// Free array on device
+		std::cout << std::endl << "Free memory on GPU" << std::endl;
 		cudaFree(dev_output);
 		cudaFree(dev_inputImg);
 	}
