@@ -69,14 +69,14 @@ __global__ void maxReduce_ex3(const uint *const dev_array, const uint size, uint
 
 extern __shared__ uint sharedMemory[];
 
-int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+int index = (blockIdx.x * blockDim.x * 2) + threadIdx.x;
 int idThread = threadIdx.x;
 
 if(index >= size)
   sharedMemory[idThread] = 0;
 else {
-  if(index + (blockDim.x * blockDim.x / 2) >= size)
-    sharedMemory[idThread] = umax(dev_array[index], dev_array[index + (blockDim.x * blockIdx.x / 2)]);
+  if(index + (blockDim.x / 2) < size)
+    sharedMemory[idThread] = umax(dev_array[index], dev_array[index + blockDim.x]);
   else
     sharedMemory[idThread] = dev_array[index];
 }
@@ -91,6 +91,114 @@ for(int i = (blockDim.x / 2); i > 0; i /= 2) {
 
 if(idThread == 0)
    dev_partialMax[blockIdx.x] = sharedMemory[idThread];
+}
+
+// ==================================================== EX 4
+__global__ void maxReduce_ex4(const uint *const dev_array, const uint size, uint *const dev_partialMax)
+{
+
+extern __shared__ uint sharedMemory[];
+
+int index = (blockIdx.x * blockDim.x * 2) + threadIdx.x;
+int idThread = threadIdx.x;
+int i = 0;
+
+if(index >= size)
+  sharedMemory[idThread] = 0;
+else {
+  if(index + (blockDim.x / 2) < size)
+    sharedMemory[idThread] = umax(dev_array[index], dev_array[index + blockDim.x]);
+  else
+    sharedMemory[idThread] = dev_array[index];
+}
+
+__syncthreads();
+for(i = (blockDim.x / 2); i > 0; i /= 2) {
+
+  if(i < 32)
+    break;
+
+  if(idThread < i)
+    sharedMemory[idThread] = umax(sharedMemory[idThread], sharedMemory[idThread + i]);
+
+  __syncthreads();
+}
+
+volatile uint * vShardMemory = sharedMemory;
+
+if(idThread < i) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + i]);
+i /= 2;
+if(idThread < i) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + i]);
+i /= 2;
+if(idThread < i) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + i]);
+i /= 2;
+if(idThread < i) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + i]);
+i /= 2;
+if(idThread < i) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + i]);
+
+if(idThread == 0)
+   dev_partialMax[blockIdx.x] = sharedMemory[idThread];
+}
+
+// ==================================================== EX 5
+template <typename T> T TMax(T x, T y)
+{
+    return (x > y) ? x : y;
+}
+
+template <unsigned int N>
+__global__ void maxReduce_ex5(const uint *const dev_array, const uint size, uint *const dev_partialMax)
+{
+
+extern __shared__ uint sharedMemory[];
+
+int index = (blockIdx.x * blockDim.x * 2) + threadIdx.x;
+int idThread = threadIdx.x;
+
+if(index >= size)
+  sharedMemory[idThread] = 0;
+else {
+  if(index + (blockDim.x / 2) < size)
+    sharedMemory[idThread] = umax(dev_array[index], dev_array[index + blockDim.x]);
+  else
+    sharedMemory[idThread] = dev_array[index];
+}
+
+volatile uint * vShardMemory = sharedMemory;
+
+__syncthreads();
+
+if(N >= 1024) {
+  if(idThread < 512) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 512]);
+  __syncthreads();
+}
+
+if(N >= 512) {
+  if(idThread < 256) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 256]);
+  __syncthreads();
+}
+
+if(N >= 256) {
+  if(idThread < 128) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 128]);
+  __syncthreads();
+}
+
+if(N >= 128) {
+  if(idThread < 64) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 64]);
+  __syncthreads();
+}
+if(N >= 64) {
+  if(idThread < 32) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 32]);
+  __syncthreads();
+}
+
+if(idThread < 16) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 16]);
+if(idThread < 8) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 8]);
+if(idThread < 4) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 4]);
+if(idThread < 2) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 2]);
+if(idThread < 1) vShardMemory[idThread] = umax(vShardMemory[idThread], vShardMemory[idThread + 1]);
+
+if(idThread == 0) dev_partialMax[blockIdx.x] = sharedMemory[idThread];
 }
 
 	void studentJob(const std::vector<uint> &array, const uint resCPU /* Just for comparison */, const uint nbIterations)

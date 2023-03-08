@@ -7,7 +7,7 @@
 BIN=addVector
 # FLAG
 FLAGS=-Wall -O3
-FLAGS_NVCC=-gencode=arch=compute_50,code=sm_50
+FLAGS_NVCC=-gencode=arch=compute_61,code=sm_61
 # INCLUDES
 INC=-I./include -I/usr/local/cuda/include
 # SRC Directory
@@ -41,5 +41,3 @@ $(OBJDIR)/%.cu.o: $(SRC)/%.cu
 clean:
 	- rm $(OBJDIR)/*.o
 	- rm $(BIN)
-
-
